@@ -67,11 +67,11 @@ if "sales_input" not in st.session_state:
 # Sidebar Filters
 st.sidebar.header("🔧 Filters")
 min_price_filter = st.sidebar.number_input(
-    "**Only include sales ABOVE this price (£)**",
+    "**Only include sales ABOVE this price (GBP)**",
     value=0,
     step=5,
     min_value=0,
-    help="e.g. set to 90 to ignore all sales below £90"
+    help="e.g. set to 90 to ignore all sales below GBP 90"
 )
 
 velocity_x = st.sidebar.number_input(
@@ -89,8 +89,8 @@ with col1:
     data = st.text_area(
         "Paste Sales Data Here",
         height=520,
-        key="sales_input",          # ← ONLY key (no value=) → Clear works 100%
-        placeholder="02/15/26, 10:54 PMUK 11.5\n£110\n..."
+        key="sales_input",
+        placeholder="02/15/26, 10:54 PMUK 11.5\nGBP110\n..."
     )
 with col2:
     if st.button("🗑️ Clear Data", use_container_width=True, type="secondary"):
@@ -107,7 +107,7 @@ if st.button("🔍 Analyze", type="primary", use_container_width=True):
         filtered_sales = [s for s in sales if s['price'] >= min_price_filter]
         
         if not filtered_sales:
-            st.error(f"No sales ≥ £{min_price_filter}")
+            st.error(f"No sales >= GBP {min_price_filter}")
         else:
             cutoff = datetime.now() - timedelta(days=120)
             recent_sales = [s for s in filtered_sales if s['date'] >= cutoff]
@@ -135,17 +135,15 @@ if st.button("🔍 Analyze", type="primary", use_container_width=True):
                 st.success("✅ Done!")
                 
                 st.markdown(f"""
-**📊 120-Day Analysis (Sales ≥ £{min_price_filter})**
+**📊 120-Day Analysis (Sales >= GBP {min_price_filter})**
 
 **Valid Sales**: {n}  
-**Avg Sold Price**: £{avg_price:.2f}  
-**Avg Net Payout**: £{avg_net:.2f}  
-**Avg Net (Last 10)**: £{avg_net_last10:.2f}
+**Avg Sold Price**: GBP{avg_price:.2f}  
+**Avg Net Payout**: GBP{avg_net:.2f}  
+**Avg Net (Last 10)**: GBP{avg_net_last10:.2f}
 
 **Avg Days Between Sales** (last {velocity_x} sales): **{avg_days_x} days**
 
 **Target ROI**: {target_roi:.0%}  
-**Recommended Max Price to Pay**: **£{max_pay}**
-                """)  
-**Recommended Max Price to Pay**: **£{max_pay}**
+**Recommended Max Price to Pay**: **GBP{max_pay}**
                 """)
