@@ -23,12 +23,15 @@ def parse_sales(raw_text):
     i = 0
     while i < len(lines):
         line = lines[i]
-        date_match = re.search(r'(\d{2}/\d{2}/\d{2})', line)
-        if date_match:
+        date_time_match = re.search(r'(\d{2}/\d{2}/\d{2}), (\d{1,2}:\d{2} (?:AM|PM))', line)
+        if date_time_match:
             try:
-                date = datetime.strptime(date_match.group(1), '%m/%d/%y')
-                if date > datetime.now():
-                    date = date.replace(year=date.year - 100)
+                date_str = date_time_match.group(1)
+                time_str = date_time_match.group(2)
+                dt_str = f"{date_str}, {time_str}"
+                dt = datetime.strptime(dt_str, '%m/%d/%y, %I:%M %p')
+                if dt > datetime.now():
+                    dt = dt.replace(year=dt.year - 100)
                 
                 price = None
                 for j in range(i, min(i + 6, len(lines))):
@@ -39,13 +42,12 @@ def parse_sales(raw_text):
                         break
                 
                 if price is not None:
-                    sales.append({'date': date, 'price': price})
-            except:
+                    sales.append({'date': dt, 'price': price})
+            except ValueError:
                 pass
         i += 1
     return sales
 
-# Your exact average days calculation
 def calculate_avg_days(sales_list):
     if len(sales_list) < 2:
         return None
@@ -69,46 +71,34 @@ st.set_page_config(page_title="Sneaker Analyzer", layout="wide")
 st.title("🚀 Sneaker Sales Analyzer")
 st.caption("Paste your StockX sales data exactly as before")
 
-# Session state for paste area
 if "sales_input" not in st.session_state:
     st.session_state.sales_input = ""
 
 def clear_data():
     st.session_state.sales_input = ""
 
-# Sidebar (advanced settings)
 st.sidebar.header("Advanced Settings")
-velocity_x = st.sidebar.number_input(
-    "Use LAST ___ sales for ROI calculation",
-    min_value=5,
-    max_value=100,
-    value=20,
-    step=5
-)
 show_comparison = st.sidebar.checkbox(
-    "Also show Last 10 & Last 50 velocity",
+    "Also show Last 10 velocity",
     value=True
 )
 
-# Main page
 data = st.text_area(
     "📋 Paste Sales Data Here",
     height=520,
     key="sales_input",
-    placeholder="02/19/26, 6:58 PMUK 8.5\n£98\n..."
+    placeholder="02/10/26, 1:47 AMUK 7.5\n£109\n..."
 )
 
-# Filter section – BEFORE analyze button
 st.subheader("🔍 Filter BEFORE Analysis")
 min_price = st.number_input(
-    "Only include sales **at or above** this price (£)",
+    "Only include sales **above** this price (£)",
     value=0,
     step=5,
     min_value=0,
-    help="Example: set to 110 → includes £110 and higher"
+    help="e.g. 110 = only £111+"
 )
 
-# Buttons
 col_clear, col_analyze = st.columns([1, 3])
 with col_clear:
     st.button("🗑️ Clear Data", on_click=clear_data, use_container_width=True, type="secondary")
@@ -121,11 +111,10 @@ if analyze_clicked:
     else:
         all_sales = parse_sales(data)
         
-        # Changed: ≥ instead of >
-        filtered_sales = [s for s in all_sales if s['price'] >= min_price]
+        filtered_sales = [s for s in all_sales if s['price'] > min_price]
         
         if len(filtered_sales) < 2:
-            st.error(f"No sales at or above £{min_price}")
+            st.error(f"No sales above £{min_price}")
         else:
             cutoff = datetime.now() - timedelta(days=120)
             recent_sales = [s for s in filtered_sales if s['date'] >= cutoff]
@@ -140,18 +129,21 @@ if analyze_clicked:
                 last_10 = sorted(recent_sales, key=lambda x: x['date'], reverse=True)[:10]
                 avg_net_last10 = mean(calculate_net(s['price']) for s in last_10)
                 
+                # Main velocity: ALL in last 120 days
                 sorted_recent = sorted(recent_sales, key=lambda x: x['date'], reverse=True)
-                avg_days_x   = calculate_avg_days(sorted_recent[:velocity_x])
-                avg_days_10  = calculate_avg_days(sorted_recent[:10])
-                avg_days_50  = calculate_avg_days(sorted_recent[:50]) if len(sorted_recent) >= 50 else None
+                avg_days_all = calculate_avg_days(sorted_recent)
                 
-                target_roi = get_target_roi(avg_days_x)
+                # Optional last 10
+                avg_days_10 = calculate_avg_days(last_10) if show_comparison else None
+                
+                # Use ALL 120d for ROI
+                target_roi = get_target_roi(avg_days_all)
                 max_pay = round(avg_net_last10 / (1 + target_roi), 2)
                 
                 st.success("✅ Analysis Complete")
                 
                 st.markdown(f"""
-**📊 120-Day Analysis (Sales ≥ £{min_price})**
+**📊 120-Day Analysis (Sales > £{min_price})**
 
 **Valid Sales**: {n}  
 **Avg Sold Price**: £{avg_price:.2f}  
@@ -159,14 +151,11 @@ if analyze_clicked:
 **Avg Net (Last 10)**: £{avg_net_last10:.2f}
 
 **Average Days Between Sales** (your exact method):
-- Last **{velocity_x}** sales → **{avg_days_x} days** (used for ROI)
+- All sales in last 120 days → **{avg_days_all} days** (used for ROI)
                 """)
                 
-                if show_comparison:
-                    st.markdown(f"""
-- Last **10** sales → **{avg_days_10} days**
-- Last **50** sales → **{avg_days_50} days** (if available)
-                    """)
+                if show_comparison and avg_days_10 is not None:
+                    st.markdown(f"- Last 10 sales → **{avg_days_10} days**")
                 
                 st.markdown(f"""
 **Target ROI**: {target_roi:.0%}  
