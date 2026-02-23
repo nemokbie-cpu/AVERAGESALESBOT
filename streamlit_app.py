@@ -37,6 +37,7 @@ def parse_sales(raw_text):
                         price = float(price_match.group(1).replace(',', ''))
                         i = j
                         break
+                
                 if price is not None:
                     sales.append({'date': date, 'price': price})
             except:
@@ -44,12 +45,22 @@ def parse_sales(raw_text):
         i += 1
     return sales
 
+# === YOUR EXACT AVERAGE DAYS CALCULATION ===
 def calculate_avg_days(sales_list):
+    """Exact same logic as the script you just sent"""
     if len(sales_list) < 2:
         return None
-    sorted_sales = sorted(sales_list, key=lambda x: x['date'])
-    days_list = [(sorted_sales[i]['date'] - sorted_sales[i-1]['date']).days for i in range(1, len(sorted_sales))]
-    return round(mean(days_list), 2)
+    
+    date_list = [s['date'] for s in sales_list]
+    date_list.sort(reverse=True)          # newest → oldest (exactly as your script)
+    
+    intervals = []
+    for i in range(1, len(date_list)):
+        delta = (date_list[i-1] - date_list[i]).days   # same delta formula
+        intervals.append(delta)
+    
+    avg = sum(intervals) / len(intervals)
+    return round(avg, 1)   # matches your print(.1f) style
 
 # ====================== STREAMLIT APP ======================
 st.set_page_config(page_title="Sneaker Analyzer", layout="wide")
@@ -65,12 +76,13 @@ def clear_data():
 
 # Sidebar Filters
 st.sidebar.header("🔧 Filters")
+
 min_price = st.sidebar.number_input(
-    "Only include sales **OVER** this price (£)",
+    "Only include sales **above** this price (£)",
     value=0,
     step=5,
     min_value=0,
-    help="e.g. 90 = ignore everything below £90"
+    help="e.g. set to 90 → ignores £90 and below"
 )
 
 velocity_x = st.sidebar.number_input(
@@ -93,7 +105,7 @@ with col1:
         "Paste Sales Data Here",
         height=520,
         key="sales_input",
-        placeholder="02/10/26, 1:47 AMUK 7.5\n£109\n..."
+        placeholder="02/19/26, 6:58 PMUK 8.5\n£98\n..."
     )
 with col2:
     st.button("🗑️ Clear Data", on_click=clear_data, use_container_width=True, type="secondary")
@@ -104,11 +116,11 @@ if st.button("🔍 Analyze Data", type="primary", use_container_width=True):
     else:
         all_sales = parse_sales(data)
         
-        # Price filter
-        filtered_sales = [s for s in all_sales if s['price'] >= min_price]
+        # Price filter (strictly above)
+        filtered_sales = [s for s in all_sales if s['price'] > min_price]
         
         if len(filtered_sales) < 2:
-            st.error(f"No sales ≥ £{min_price}")
+            st.error(f"No sales above £{min_price}")
         else:
             cutoff = datetime.now() - timedelta(days=120)
             recent_sales = [s for s in filtered_sales if s['date'] >= cutoff]
@@ -120,11 +132,10 @@ if st.button("🔍 Analyze Data", type="primary", use_container_width=True):
                 avg_price = mean(s['price'] for s in recent_sales)
                 avg_net = mean(calculate_net(s['price']) for s in recent_sales)
                 
-                # Last 10 net
                 last_10 = sorted(recent_sales, key=lambda x: x['date'], reverse=True)[:10]
                 avg_net_last10 = mean(calculate_net(s['price']) for s in last_10)
                 
-                # Velocities
+                # Your exact calculation method
                 sorted_recent = sorted(recent_sales, key=lambda x: x['date'], reverse=True)
                 avg_days_x = calculate_avg_days(sorted_recent[:velocity_x])
                 avg_days_10 = calculate_avg_days(sorted_recent[:10])
@@ -133,17 +144,17 @@ if st.button("🔍 Analyze Data", type="primary", use_container_width=True):
                 target_roi = get_target_roi(avg_days_x)
                 max_pay = round(avg_net_last10 / (1 + target_roi), 2)
                 
-                st.success("✅ Analysis Complete")
+                st.success("✅ Analysis Complete (using your exact average days method)")
                 
                 st.markdown(f"""
-**📊 120-Day Analysis (Sales ≥ £{min_price})**
+**📊 120-Day Analysis (Sales above £{min_price})**
 
 **Valid Sales**: {n}  
 **Avg Sold Price**: £{avg_price:.2f}  
 **Avg Net Payout**: £{avg_net:.2f}  
 **Avg Net (Last 10)**: £{avg_net_last10:.2f}
 
-**Average Days Between Sales:**
+**Average Days Between Sales** (your exact method):
 - Last **{velocity_x}** sales → **{avg_days_x} days** (used for ROI)
                 """)
                 
